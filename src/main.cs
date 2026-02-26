@@ -52,8 +52,8 @@ static async Task HandleClientAsync(TcpClient client)
         }
         var request = ParseRequest(messageSize, requestBuffer);
 
-        var response = BuildResponse(request.CorrelationId);
-        
+        var response = BuildResponse(request);
+
         await stream.WriteAsync(response);
         await stream.FlushAsync();
       }
@@ -91,13 +91,16 @@ static KafkaMessage ParseRequest(int messageSize, byte[] request)
   return new KafkaMessage(messageSize, apiKey, apiVersion, correlationId);
 }
 
-static byte[] BuildResponse(int correlationId)
+static byte[] BuildResponse(KafkaMessage kafkaMessage)
 {
-  const int responseBodySize = 4;
+  const int responseBodySize = 6;
   var response = new byte[4 + responseBodySize];
 
+  short errorCode = kafkaMessage.ApiVersion > 4 ? (short)35 : (short)0;
+
   BinaryPrimitives.WriteInt32BigEndian(response.AsSpan(0, 4), responseBodySize);
-  BinaryPrimitives.WriteInt32BigEndian(response.AsSpan(4, 4), correlationId);
+  BinaryPrimitives.WriteInt32BigEndian(response.AsSpan(4, 4), kafkaMessage.CorrelationId);
+  BinaryPrimitives.WriteInt16BigEndian(response.AsSpan(8, 2), errorCode);
 
   return response;
 }
