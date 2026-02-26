@@ -3,8 +3,6 @@ using System.Net;
 using System.Net.Sockets;
 
 const int Port = 9092;
-const int MessageSize = 0;
-const int CorrelationId = 7;
 
 var listener = new TcpListener(IPAddress.Any, Port);
 listener.Start();
@@ -52,8 +50,10 @@ static async Task HandleClientAsync(TcpClient client)
         {
           break;
         }
+        var request = ParseRequest(messageSize, requestBuffer);
 
-        var response = BuildResponse(MessageSize, CorrelationId);
+        var response = BuildResponse(request.CorrelationId);
+        
         await stream.WriteAsync(response);
         await stream.FlushAsync();
       }
@@ -82,12 +82,30 @@ static async Task<bool> TryReadExactlyAsync(NetworkStream stream, byte[] buffer)
   return true;
 }
 
-static byte[] BuildResponse(int messageSize, int correlationId)
+static KafkaMessage ParseRequest(int messageSize, byte[] request)
 {
-  var response = new byte[8];
+  var apiKey = BinaryPrimitives.ReadInt16BigEndian(request.AsSpan(0, 2));
+  var apiVersion = BinaryPrimitives.ReadInt16BigEndian(request.AsSpan(2, 2));
+  var correlationId = BinaryPrimitives.ReadInt32BigEndian(request.AsSpan(4, 4));
 
-  BinaryPrimitives.WriteInt32BigEndian(response.AsSpan(0, 4), messageSize);
+  return new KafkaMessage(messageSize, apiKey, apiVersion, correlationId);
+}
+
+static byte[] BuildResponse(int correlationId)
+{
+  const int responseBodySize = 4;
+  var response = new byte[4 + responseBodySize];
+
+  BinaryPrimitives.WriteInt32BigEndian(response.AsSpan(0, 4), responseBodySize);
   BinaryPrimitives.WriteInt32BigEndian(response.AsSpan(4, 4), correlationId);
 
   return response;
+}
+
+class KafkaMessage(int messageSize, int apiKey, int apiVersion, int correlationId)
+{
+  public int MessageSize { get; set; } = messageSize;
+  public int ApiKey { get; set; } = apiKey;
+  public int ApiVersion { get; set; } = apiVersion;
+  public int CorrelationId { get; set; } = correlationId;
 }
