@@ -11,14 +11,14 @@ public static class RequestParcer
 
     return requestHeader.ApiKey switch
     {
-      18 => ParseApiVersionsRequest(requestHeader, request),
+      ApiKey.ApiVersions => ParseApiVersionsRequest(requestHeader, request),
       _ => null,
     };
   }
 
   static RequestHeader ParseRequestHeader(int messageSize, byte[] request)
   {
-    var apiKey = BinaryPrimitives.ReadInt16BigEndian(request.AsSpan(0, 2));
+    var apiKey = (ApiKey)BinaryPrimitives.ReadInt16BigEndian(request.AsSpan(0, 2));
     var apiVersion = BinaryPrimitives.ReadInt16BigEndian(request.AsSpan(2, 2));
     var correlationId = BinaryPrimitives.ReadInt32BigEndian(request.AsSpan(4, 4));
     var clientIdSize = BinaryPrimitives.ReadInt16BigEndian(request.AsSpan(8, 2));

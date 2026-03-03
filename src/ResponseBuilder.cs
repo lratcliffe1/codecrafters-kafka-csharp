@@ -8,7 +8,7 @@ public static class ResponseBuilder
   {
     return request.RequestHeader.ApiKey switch
     {
-      18 => BuildApiVersionsResponse(request),
+      ApiKey.ApiVersions => BuildApiVersionsResponse(request),
       _ => BuildUnsupportedResponse(request),
     };
   }
@@ -16,10 +16,10 @@ public static class ResponseBuilder
   static byte[] BuildApiVersionsResponse(BaseKafkaRequest request)
   {
     short errorCode = request.RequestHeader.ApiVersion > 4 ? (short)35 : (short)0;
-    var includeApiVersionsKey = errorCode == 0;
+    var apiVersionEntries = errorCode == 0 ? ApiVersionArray.Instance.Values.ToArray() : [];
 
     const int responseHeaderSize = 4; // correlation_id
-    var apiKeysCount = includeApiVersionsKey ? 1 : 0;
+    var apiKeysCount = apiVersionEntries.Length;
 
     // ApiVersionsResponse v4 body (flexible):
     // error_code (2)
@@ -47,18 +47,9 @@ public static class ResponseBuilder
     // Compact array length is element_count + 1.
     response[offset++] = (byte)(apiKeysCount + 1);
 
-    if (includeApiVersionsKey)
+    if (apiKeysCount > 0)
     {
-      BinaryPrimitives.WriteInt16BigEndian(response.AsSpan(offset, 2), 18); // ApiVersions
-      offset += 2;
-
-      BinaryPrimitives.WriteInt16BigEndian(response.AsSpan(offset, 2), 0); // min_version
-      offset += 2;
-
-      BinaryPrimitives.WriteInt16BigEndian(response.AsSpan(offset, 2), 4); // max_version
-      offset += 2;
-
-      response[offset++] = 0; // entry TAG_BUFFER (empty)
+      offset = WriteApiVersionsResponse(response, offset, apiVersionEntries);
     }
 
     BinaryPrimitives.WriteInt32BigEndian(response.AsSpan(offset, 4), 0); // throttle_time_ms
@@ -67,6 +58,25 @@ public static class ResponseBuilder
     response[offset++] = 0; // response TAG_BUFFER (empty)
 
     return response;
+  }
+
+  static int WriteApiVersionsResponse(byte[] response, int offset, IReadOnlyCollection<ApiVersionEntry> apiVersionEntries)
+  {
+    foreach (var apiVersionEntry in apiVersionEntries)
+    {
+      BinaryPrimitives.WriteInt16BigEndian(response.AsSpan(offset, 2), (short)apiVersionEntry.ApiKey);
+      offset += 2;
+
+      BinaryPrimitives.WriteInt16BigEndian(response.AsSpan(offset, 2), apiVersionEntry.MinVersion); // min_version
+      offset += 2;
+
+      BinaryPrimitives.WriteInt16BigEndian(response.AsSpan(offset, 2), apiVersionEntry.MaxVersion); // max_version
+      offset += 2;
+
+      response[offset++] = 0; // entry TAG_BUFFER (empty)
+    }
+
+    return offset;
   }
 
   static byte[] BuildUnsupportedResponse(BaseKafkaRequest request)
@@ -83,4 +93,20 @@ public static class ResponseBuilder
 
     return response;
   }
+}
+
+public class ApiVersionArray
+{
+  public static Dictionary<ApiKey, ApiVersionEntry> Instance { get; } = new Dictionary<ApiKey, ApiVersionEntry>()
+  {
+    [ApiKey.ApiVersions] = new ApiVersionEntry(ApiKey.ApiVersions, 0, 4),
+    [ApiKey.DescribeTopicPartitions] = new ApiVersionEntry(ApiKey.DescribeTopicPartitions, 0, 0),
+  };
+}
+
+public class ApiVersionEntry(ApiKey apiKey, short minVersion, short maxVersion)
+{
+  public ApiKey ApiKey { get; set; } = apiKey;
+  public short MinVersion { get; set; } = minVersion;
+  public short MaxVersion { get; set; } = maxVersion;
 }
