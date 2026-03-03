@@ -33,6 +33,12 @@ public class KafkaResponseWriter
     _response[Offset++] = value;
   }
 
+  public void WriteBytes(byte[] value)
+  {
+    value.CopyTo(_response.AsSpan(Offset));
+    Offset += value.Length;
+  }
+
   public void WriteTagBufferEmpty() => WriteByte(0);
 
   public void WriteCompactArrayLength(int elementCount) => WriteByte((byte)(elementCount + 1));

@@ -36,16 +36,41 @@ public class DescribeTopicPartitionsRequest(RequestHeader requestHeader, string 
 
   public override byte[] BuildResponse()
   {
+    var topicMetadata = ClusterMetadata.GetTopicMetadata(TopicName);
+    var topicExists = topicMetadata != null;
+    var topicErrorCode = topicExists ? (short)0 : (short)3; // UNKNOWN_TOPIC_OR_PARTITION when missing
+
     const int responseHeaderSize = 5; // correlation_id + TAG_BUFFER (header v1)
+    var topicNameBytesCount = Encoding.UTF8.GetByteCount(TopicName);
+    var partitionCount = topicMetadata?.Partitions.Count ?? 0;
+
+    var partitionsSize = 1; // compact array length
+    if (topicMetadata != null)
+    {
+      foreach (var partition in topicMetadata.Partitions)
+      {
+        partitionsSize +=
+          2 + // partition error_code
+          4 + // partition_index
+          4 + // leader_id
+          4 + // leader_epoch
+          1 + (partition.Replicas.Count * 4) + // replica_nodes compact array
+          1 + (partition.Isr.Count * 4) + // isr_nodes compact array
+          1 + (partition.EligibleLeaderReplicas.Count * 4) + // eligible_leader_replicas compact array
+          1 + (partition.LastKnownElr.Count * 4) + // last_known_elr compact array
+          1 + // offline_replicas compact array (empty)
+          1; // partition TAG_BUFFER
+      }
+    }
+
     var responseBodySize =
       4 + // throttle_time_ms
       1 + // topics compact array length
       2 + // topic error_code
-      1 + // topic name compact length
-      Encoding.UTF8.GetByteCount(TopicName) +
-      16 + // topic_id (UUID all zeros)
+      1 + topicNameBytesCount + // topic name compact string
+      16 + // topic_id
       1 + // is_internal
-      1 + // partitions compact array length (empty)
+      partitionsSize +
       4 + // topic_authorized_operations
       1 + // topic TAG_BUFFER
       1 + // next_cursor (nullable struct, null)
@@ -56,13 +81,58 @@ public class DescribeTopicPartitionsRequest(RequestHeader requestHeader, string 
     writer.WriteTagBufferEmpty(); // response header TAG_BUFFER
     writer.WriteInt32(0); // throttle_time_ms
     writer.WriteCompactArrayLength(1); // topics compact array with 1 element
-    writer.WriteInt16(3); // UNKNOWN_TOPIC_OR_PARTITION
+    writer.WriteInt16(topicErrorCode);
     writer.WriteCompactString(TopicName);
 
-    // topic_id UUID = 00000000-0000-0000-0000-000000000000 (16 zero bytes)
-    writer.Advance(16);
+    if (topicMetadata != null)
+    {
+      writer.WriteBytes(topicMetadata.TopicId);
+    }
+    else
+    {
+      writer.Advance(16);
+    }
     writer.WriteByte(0); // is_internal = false
-    writer.WriteCompactArrayLength(0); // partitions compact array with 0 elements
+    writer.WriteCompactArrayLength(partitionCount);
+
+    if (topicMetadata != null)
+    {
+      foreach (var partition in topicMetadata.Partitions)
+      {
+        writer.WriteInt16(0); // partition error_code
+        writer.WriteInt32(partition.PartitionId);
+        writer.WriteInt32(partition.LeaderId);
+        writer.WriteInt32(partition.LeaderEpoch);
+
+        writer.WriteCompactArrayLength(partition.Replicas.Count);
+        foreach (var brokerId in partition.Replicas)
+        {
+          writer.WriteInt32(brokerId);
+        }
+
+        writer.WriteCompactArrayLength(partition.Isr.Count);
+        foreach (var brokerId in partition.Isr)
+        {
+          writer.WriteInt32(brokerId);
+        }
+
+        writer.WriteCompactArrayLength(partition.EligibleLeaderReplicas.Count);
+        foreach (var brokerId in partition.EligibleLeaderReplicas)
+        {
+          writer.WriteInt32(brokerId);
+        }
+
+        writer.WriteCompactArrayLength(partition.LastKnownElr.Count);
+        foreach (var brokerId in partition.LastKnownElr)
+        {
+          writer.WriteInt32(brokerId);
+        }
+
+        writer.WriteCompactArrayLength(0); // offline_replicas
+        writer.WriteTagBufferEmpty(); // partition TAG_BUFFER
+      }
+    }
+
     writer.WriteInt32(0); // topic_authorized_operations
     writer.WriteTagBufferEmpty(); // topic TAG_BUFFER
     writer.WriteByte(0xff); // next_cursor = null

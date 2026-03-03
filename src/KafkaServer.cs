@@ -31,12 +31,11 @@ public class KafkaServer(int port)
     using (client)
     await using (var stream = client.GetStream())
     {
-      var sizeBuffer = new byte[4];
-
       try
       {
         while (true)
         {
+          var sizeBuffer = new byte[4];
           var gotSize = await TryReadExactlyAsync(stream, sizeBuffer);
           if (!gotSize)
           {
