@@ -11,6 +11,7 @@ public static class RequestParser
 
     return requestHeader.ApiKey switch
     {
+      ApiKey.Fetch => FetchRequest.FromBytes(requestHeader, request),
       ApiKey.ApiVersions => ApiVersionsRequest.FromBytes(requestHeader, request),
       ApiKey.DescribeTopicPartitions => DescribeTopicPartitionsRequest.FromBytes(requestHeader, request),
       _ => new UnsupportedRequest(requestHeader),

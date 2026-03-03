@@ -3,6 +3,7 @@ namespace src;
 public enum ApiKey
 {
   Unknown = 0,
+  Fetch = 1,
   ApiVersions = 18,
   DescribeTopicPartitions = 75,
 }
@@ -11,6 +12,7 @@ public class ApiKeyArray
 {
   public static Dictionary<ApiKey, ApiKeyEntry> Instance { get; } = new Dictionary<ApiKey, ApiKeyEntry>()
   {
+    [ApiKey.Fetch] = new ApiKeyEntry(ApiKey.Fetch, 0, 16),
     [ApiKey.ApiVersions] = new ApiKeyEntry(ApiKey.ApiVersions, 0, 4),
     [ApiKey.DescribeTopicPartitions] = new ApiKeyEntry(ApiKey.DescribeTopicPartitions, 0, 0),
   };

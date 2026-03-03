@@ -31,8 +31,6 @@ public class RequestHeader(int messageSize, ApiKey apiKey, int apiVersion, int c
     (ApiKey)BinaryPrimitives.ReadInt16BigEndian(request.AsSpan(0, 2)),
     BinaryPrimitives.ReadInt16BigEndian(request.AsSpan(2, 2)),
     BinaryPrimitives.ReadInt32BigEndian(request.AsSpan(4, 4)),
-    Encoding.UTF8.GetString(request.AsSpan(10, BinaryPrimitives.ReadInt16BigEndian(request.AsSpan(8, 2))))
-  )
-  {
-  }
+    Encoding.UTF8.GetString(request.AsSpan(10, BinaryPrimitives.ReadInt16BigEndian(request.AsSpan(8, 2)))))
+  { }
 }
