@@ -48,6 +48,21 @@ public class KafkaResponseWriter
     Offset += 4;
   }
 
+  public void WriteInt64(long value)
+  {
+    Span<byte> bytes = stackalloc byte[8];
+    BinaryPrimitives.WriteInt64BigEndian(bytes, value);
+    _response.Add(bytes[0]);
+    _response.Add(bytes[1]);
+    _response.Add(bytes[2]);
+    _response.Add(bytes[3]);
+    _response.Add(bytes[4]);
+    _response.Add(bytes[5]);
+    _response.Add(bytes[6]);
+    _response.Add(bytes[7]);
+    Offset += 8;
+  }
+
   public void WriteBytes(byte[] value)
   {
     _response.AddRange(value);
