@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Net;
 using System.Net.Sockets;
+using src;
 
 const int Port = 9092;
 
@@ -50,9 +51,14 @@ static async Task HandleClientAsync(TcpClient client)
         {
           break;
         }
-        var request = ParseRequest(messageSize, requestBuffer);
+        var kafkaRequest = RequestParcer.ParseRequest(messageSize, requestBuffer);
+        if (kafkaRequest == null)
+        {
+          Console.Error.WriteLine($"Unknown request type: {kafkaRequest?.RequestHeader.ApiKey}");
+          continue;
+        }
 
-        var response = BuildResponse(request);
+        var response = ResponseBuilder.BuildResponse(kafkaRequest!);
 
         await stream.WriteAsync(response);
         await stream.FlushAsync();
@@ -80,35 +86,4 @@ static async Task<bool> TryReadExactlyAsync(NetworkStream stream, byte[] buffer)
   }
 
   return true;
-}
-
-static KafkaMessage ParseRequest(int messageSize, byte[] request)
-{
-  var apiKey = BinaryPrimitives.ReadInt16BigEndian(request.AsSpan(0, 2));
-  var apiVersion = BinaryPrimitives.ReadInt16BigEndian(request.AsSpan(2, 2));
-  var correlationId = BinaryPrimitives.ReadInt32BigEndian(request.AsSpan(4, 4));
-
-  return new KafkaMessage(messageSize, apiKey, apiVersion, correlationId);
-}
-
-static byte[] BuildResponse(KafkaMessage kafkaMessage)
-{
-  const int responseBodySize = 6;
-  var response = new byte[4 + responseBodySize];
-
-  short errorCode = kafkaMessage.ApiVersion > 4 ? (short)35 : (short)0;
-
-  BinaryPrimitives.WriteInt32BigEndian(response.AsSpan(0, 4), responseBodySize);
-  BinaryPrimitives.WriteInt32BigEndian(response.AsSpan(4, 4), kafkaMessage.CorrelationId);
-  BinaryPrimitives.WriteInt16BigEndian(response.AsSpan(8, 2), errorCode);
-
-  return response;
-}
-
-class KafkaMessage(int messageSize, int apiKey, int apiVersion, int correlationId)
-{
-  public int MessageSize { get; set; } = messageSize;
-  public int ApiKey { get; set; } = apiKey;
-  public int ApiVersion { get; set; } = apiVersion;
-  public int CorrelationId { get; set; } = correlationId;
 }
