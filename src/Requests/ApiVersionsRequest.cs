@@ -1,4 +1,5 @@
 using System.Text;
+using src.Requests.Base;
 
 namespace src.Requests;
 
@@ -13,31 +14,14 @@ public class ApiVersionsRequest(RequestHeader requestHeader, string clientSoftwa
     return new ApiVersionsRequest(requestHeader, clientSoftwareVersion);
   }
 
-
   public override byte[] BuildResponse()
   {
-    short errorCode = RequestHeader.ApiVersion > 4 ? (short)35 : (short)0;
+    var errorCode = RequestHeader.ApiVersion > 4 ? (short)35 : (short)0;
     var apiVersionEntries = errorCode == 0 ? ApiKeyArray.Instance.Values.ToArray() : [];
 
-    const int responseHeaderSize = 4; // correlation_id
-    var apiKeysCount = apiVersionEntries.Length;
-
-    // ApiVersionsResponse v4 body (flexible):
-    // error_code (2)
-    // api_keys COMPACT_ARRAY: length (uvarint) + N * (api_key(2) + min(2) + max(2) + tagged_fields(uvarint))
-    // throttle_time_ms (4)
-    // tagged_fields (uvarint)
-    var responseBodySize =
-      2 +
-      1 +
-      apiKeysCount * (2 + 2 + 2 + 1) +
-      4 +
-      1;
-
-    var messageSize = responseHeaderSize + responseBodySize;
-    var writer = new KafkaResponseWriter(messageSize, RequestHeader.CorrelationId);
+    var writer = new KafkaResponseWriter(RequestHeader.CorrelationId);
     writer.WriteInt16(errorCode);
-    writer.WriteCompactArrayLength(apiKeysCount);
+    writer.WriteCompactArrayLength(apiVersionEntries.Length);
 
     foreach (var apiVersionEntry in apiVersionEntries)
     {

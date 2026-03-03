@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Text;
 
-namespace src;
+namespace src.Requests.Base;
 
 public interface IKafkaRequest
 {
