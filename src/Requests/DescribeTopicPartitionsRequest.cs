@@ -51,12 +51,14 @@ public class DescribeTopicPartitionsRequest(RequestHeader requestHeader, List<st
 
   public override byte[] BuildResponse()
   {
+    var sortedTopicNames = TopicNames.OrderBy(topicName => topicName, StringComparer.Ordinal).ToList();
+
     var writer = new KafkaResponseWriter(RequestHeader.CorrelationId);
     writer.WriteTagBufferEmpty(); // response header TAG_BUFFER
     writer.WriteInt32(0); // throttle_time_ms
-    writer.WriteCompactArrayLength(TopicNames.Count);
+    writer.WriteCompactArrayLength(sortedTopicNames.Count);
 
-    foreach (var topicName in TopicNames)
+    foreach (var topicName in sortedTopicNames)
     {
       var topicMetadata = ClusterMetadata.GetTopicMetadata(topicName);
       writer.WriteInt16(topicMetadata != null ? (short)0 : (short)3);
