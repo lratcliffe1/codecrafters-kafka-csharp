@@ -29,7 +29,7 @@ public class DescribeTopicPartitionsRequest(RequestHeader requestHeader, List<st
     var writer = new KafkaResponseWriter(RequestHeader.CorrelationId);
     writer.WriteTagBufferEmpty(); // response header TAG_BUFFER
     writer.WriteInt32(0); // throttle_time_ms
-    writer.WriteCompactArrayLength(sortedTopicNames.Count); // topics
+    writer.WriteCompactArrayLength(sortedTopicNames.Count);
 
     foreach (var topicName in sortedTopicNames)
     {
@@ -47,7 +47,7 @@ public class DescribeTopicPartitionsRequest(RequestHeader requestHeader, List<st
       }
 
       writer.WriteByte(0); // is_internal = false
-      writer.WriteCompactArrayLength(topicMetadata?.Partitions.Count ?? 0); // partitions
+      writer.WriteCompactArrayLength(topicMetadata?.Partitions.Count ?? 0);
 
       if (topicMetadata != null)
       {

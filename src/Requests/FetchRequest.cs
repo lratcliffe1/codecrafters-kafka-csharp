@@ -45,10 +45,10 @@ public class FetchRequest(RequestHeader requestHeader, List<FetchTopicRequest> t
 
     foreach (var topic in Topics)
     {
-      writer.WriteBytes(topic.TopicId); // responses[].topic_id
+      writer.WriteBytes(topic.TopicId);
 
       var topicMetadata = ClusterMetadata.GetTopicMetadataById(topic.TopicId);
-      writer.WriteCompactArrayLength(topic.PartitionIndexes.Count); // responses[].partitions
+      writer.WriteCompactArrayLength(topic.PartitionIndexes.Count);
       foreach (var partitionIndex in topic.PartitionIndexes)
       {
         writer.WriteInt32(partitionIndex);

@@ -21,7 +21,7 @@ public class ApiVersionsRequest(RequestHeader requestHeader, string clientSoftwa
 
     var writer = new KafkaResponseWriter(RequestHeader.CorrelationId);
     writer.WriteInt16(errorCode); // UNSUPPORTED_VERSION for request versions > 4
-    writer.WriteCompactArrayLength(apiVersionEntries.Length); // api_keys
+    writer.WriteCompactArrayLength(apiVersionEntries.Length);
 
     foreach (var apiVersionEntry in apiVersionEntries)
     {
