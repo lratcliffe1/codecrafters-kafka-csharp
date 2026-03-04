@@ -1,7 +1,8 @@
+using src.Classes;
 using src.Requests;
 using src.Requests.Base;
 
-namespace src;
+namespace src.Helpers;
 
 public static class RequestParser
 {

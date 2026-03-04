@@ -1,3 +1,5 @@
+using src.Classes;
+using src.Helpers;
 using src.Requests.Base;
 
 namespace src.Requests;
@@ -79,8 +81,3 @@ public class FetchRequest(RequestHeader requestHeader, List<FetchTopicRequest> t
   }
 }
 
-public class FetchTopicRequest(byte[] topicId, List<int> partitionIndexes)
-{
-  public byte[] TopicId { get; } = topicId;
-  public List<int> PartitionIndexes { get; } = partitionIndexes;
-}

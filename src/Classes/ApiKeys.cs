@@ -1,4 +1,4 @@
-namespace src;
+namespace src.Classes;
 
 public enum ApiKey
 {

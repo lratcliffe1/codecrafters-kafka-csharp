@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Text;
 
-namespace src;
+namespace src.Helpers;
 
 public class KafkaResponseWriter
 {
@@ -87,6 +87,19 @@ public class KafkaResponseWriter
 
   public void WriteCompactString(string value)
   {
+    var bytes = Encoding.UTF8.GetBytes(value);
+    WriteUnsignedVarInt(bytes.Length + 1);
+    WriteBytes(bytes);
+  }
+
+  public void WriteCompactNullableString(string? value)
+  {
+    if (value == null)
+    {
+      WriteUnsignedVarInt(0);
+      return;
+    }
+
     var bytes = Encoding.UTF8.GetBytes(value);
     WriteUnsignedVarInt(bytes.Length + 1);
     WriteBytes(bytes);
