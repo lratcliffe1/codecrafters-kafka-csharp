@@ -65,6 +65,26 @@ public static class ClusterMetadata
     return File.ReadAllBytes(logPath);
   }
 
+  public static void AppendPartitionRecordBatch(string topicName, int partitionId, byte[] records)
+  {
+    var topic = GetTopicMetadataByName(topicName);
+    if (topic == null)
+    {
+      return;
+    }
+
+    if (!topic.Partitions.Any(p => p.PartitionId == partitionId))
+    {
+      return;
+    }
+
+    var partitionDirectory = Path.Combine(DataLogsRootPath, $"{topic.TopicName}-{partitionId}");
+    Directory.CreateDirectory(partitionDirectory);
+    var logPath = Path.Combine(partitionDirectory, "00000000000000000000.log");
+    using var stream = new FileStream(logPath, FileMode.Append, FileAccess.Write, FileShare.Read);
+    stream.Write(records, 0, records.Length);
+  }
+
   static void ParseRecordBatches(byte[] logBytes)
   {
     var offset = 0;

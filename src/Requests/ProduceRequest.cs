@@ -25,19 +25,21 @@ public class ProduceRequest(RequestHeader requestHeader, List<ProduceTopicReques
     {
       var topicName = SharedRequestParsers.ReadCompactString(request, ref offset);
       var partitionsCount = SharedRequestParsers.ReadCompactArrayCount(request, ref offset);
-      var partitions = new List<int>(partitionsCount);
+      var partitions = new List<ProducePartitionRequest>(partitionsCount);
 
       for (var j = 0; j < partitionsCount; j++)
       {
         var partitionIndex = SharedRequestParsers.ReadInt32(request, ref offset);
-        partitions.Add(partitionIndex);
-
         var recordsLength = SharedRequestParsers.ReadUnsignedVarInt(request, ref offset);
+        byte[]? records = null;
         if (recordsLength > 0)
         {
-          offset += recordsLength - 1;
+          var recordsSize = recordsLength - 1;
+          records = request.AsSpan(offset, recordsSize).ToArray();
+          offset += recordsSize;
         }
 
+        partitions.Add(new ProducePartitionRequest(partitionIndex, records));
         SharedRequestParsers.SkipTagBuffer(request, ref offset);
       }
 
@@ -58,15 +60,20 @@ public class ProduceRequest(RequestHeader requestHeader, List<ProduceTopicReques
     foreach (var topic in Topics)
     {
       writer.WriteCompactString(topic.TopicName);
-      writer.WriteCompactArrayLength(topic.PartitionIndexes.Count);
+      writer.WriteCompactArrayLength(topic.Partitions.Count);
       var topicMetadata = ClusterMetadata.GetTopicMetadataByName(topic.TopicName);
 
-      foreach (var partitionIndex in topic.PartitionIndexes)
+      foreach (var partition in topic.Partitions)
       {
-        var partitionExists = topicMetadata?.Partitions.Any(p => p.PartitionId == partitionIndex) ?? false;
+        var partitionExists = topicMetadata?.Partitions.Any(p => p.PartitionId == partition.PartitionIndex) ?? false;
         var errorCode = partitionExists ? (short)0 : (short)3; // UNKNOWN_TOPIC_OR_PARTITION
 
-        writer.WriteInt32(partitionIndex); // index
+        if (errorCode == 0 && partition.Records is { Length: > 0 })
+        {
+          ClusterMetadata.AppendPartitionRecordBatch(topic.TopicName, partition.PartitionIndex, partition.Records);
+        }
+
+        writer.WriteInt32(partition.PartitionIndex); // index
         writer.WriteInt16(errorCode);
         writer.WriteInt64(errorCode == 0 ? 0 : -1); // base_offset
         writer.WriteInt64(-1); // log_append_time_ms
