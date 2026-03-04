@@ -2,7 +2,7 @@ using src.Requests.Base;
 
 namespace src.Requests;
 
-public class FetchRequest(RequestHeader requestHeader, List<FetchTopicRequest> topics) : BaseKafkaRequest(requestHeader), IKafkaRequest
+public class FetchRequest(RequestHeader requestHeader, List<FetchTopicRequest> topics) : BaseKafkaRequest(requestHeader)
 {
   public List<FetchTopicRequest> Topics { get; set; } = topics;
 

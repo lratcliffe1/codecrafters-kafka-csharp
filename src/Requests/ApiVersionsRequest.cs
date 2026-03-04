@@ -3,7 +3,7 @@ using src.Requests.Base;
 
 namespace src.Requests;
 
-public class ApiVersionsRequest(RequestHeader requestHeader, string clientSoftwareVersion) : BaseKafkaRequest(requestHeader), IKafkaRequest
+public class ApiVersionsRequest(RequestHeader requestHeader, string clientSoftwareVersion) : BaseKafkaRequest(requestHeader)
 {
   public string ClientId { get; set; } = requestHeader.ClientId;
   public string ClientSoftwareVersion { get; set; } = clientSoftwareVersion;

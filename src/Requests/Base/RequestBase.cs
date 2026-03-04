@@ -8,14 +8,11 @@ public interface IKafkaRequest
   byte[] BuildResponse();
 }
 
-public class BaseKafkaRequest(RequestHeader requestHeader) : IKafkaRequest
+public abstract class BaseKafkaRequest(RequestHeader requestHeader) : IKafkaRequest
 {
-  public RequestHeader RequestHeader { get; set; } = requestHeader;
+  public RequestHeader RequestHeader { get; } = requestHeader;
 
-  public virtual byte[] BuildResponse()
-  {
-    throw new NotImplementedException();
-  }
+  public abstract byte[] BuildResponse();
 }
 
 public class RequestHeader(int messageSize, ApiKey apiKey, int apiVersion, int correlationId, string clientId)

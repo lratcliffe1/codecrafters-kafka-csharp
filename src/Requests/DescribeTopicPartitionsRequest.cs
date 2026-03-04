@@ -2,7 +2,7 @@ using src.Requests.Base;
 
 namespace src.Requests;
 
-public class DescribeTopicPartitionsRequest(RequestHeader requestHeader, List<string> topicNames) : BaseKafkaRequest(requestHeader), IKafkaRequest
+public class DescribeTopicPartitionsRequest(RequestHeader requestHeader, List<string> topicNames) : BaseKafkaRequest(requestHeader)
 {
   public List<string> TopicNames { get; set; } = topicNames;
 

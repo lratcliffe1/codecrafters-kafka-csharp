@@ -2,7 +2,7 @@ using src.Requests.Base;
 
 namespace src.Requests;
 
-public class UnsupportedRequest(RequestHeader requestHeader) : BaseKafkaRequest(requestHeader), IKafkaRequest
+public class UnsupportedRequest(RequestHeader requestHeader) : BaseKafkaRequest(requestHeader)
 {
   public override byte[] BuildResponse()
   {
