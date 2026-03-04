@@ -20,19 +20,19 @@ public class ApiVersionsRequest(RequestHeader requestHeader, string clientSoftwa
     var apiVersionEntries = errorCode == 0 ? ApiKeyArray.Instance.Values.ToArray() : [];
 
     var writer = new KafkaResponseWriter(RequestHeader.CorrelationId);
-    writer.WriteInt16(errorCode);
-    writer.WriteCompactArrayLength(apiVersionEntries.Length);
+    writer.WriteInt16(errorCode); // UNSUPPORTED_VERSION for request versions > 4
+    writer.WriteCompactArrayLength(apiVersionEntries.Length); // api_keys
 
     foreach (var apiVersionEntry in apiVersionEntries)
     {
       writer.WriteInt16((short)apiVersionEntry.ApiKey);
       writer.WriteInt16(apiVersionEntry.MinVersion);
       writer.WriteInt16(apiVersionEntry.MaxVersion);
-      writer.WriteTagBufferEmpty();
+      writer.WriteTagBufferEmpty(); // api_key entry TAG_BUFFER
     }
 
     writer.WriteInt32(0); // throttle_time_ms
-    writer.WriteTagBufferEmpty();
+    writer.WriteTagBufferEmpty(); // response TAG_BUFFER
 
     return writer.ToArray();
   }

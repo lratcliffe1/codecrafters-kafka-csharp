@@ -26,9 +26,15 @@ public static class ClusterMetadata
     ParseRecordBatches(bytes);
   }
 
-  public static TopicMetadata? GetTopicMetadata(string topicName)
+  public static TopicMetadata? GetTopicMetadataByName(string topicName)
   {
     TopicsByName.TryGetValue(topicName, out var topic);
+    return topic;
+  }
+
+  public static TopicMetadata? GetTopicMetadataById(byte[] topicId)
+  {
+    TopicsById.TryGetValue(Convert.ToHexString(topicId), out var topic);
     return topic;
   }
 

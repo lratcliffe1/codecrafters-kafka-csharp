@@ -2,75 +2,57 @@ using src.Requests.Base;
 
 namespace src.Requests;
 
-public class FetchRequest(RequestHeader requestHeader, List<string> topicNames) : BaseKafkaRequest(requestHeader), IKafkaRequest
+public class FetchRequest(RequestHeader requestHeader, List<FetchTopicRequest> topics) : BaseKafkaRequest(requestHeader), IKafkaRequest
 {
-  public List<string> TopicNames { get; set; } = topicNames;
+  public List<FetchTopicRequest> Topics { get; set; } = topics;
 
   public static FetchRequest FromBytes(RequestHeader requestHeader, byte[] request)
   {
-    return new FetchRequest(requestHeader, SharedRequestParsers.ParseTopicNamesFromCompactArray(requestHeader, request));
+    var offset = SharedRequestParsers.ReadRequestBodyOffset(requestHeader);
+    offset += 4 + 4 + 4 + 1 + 4 + 4; // replica_id..session_epoch
+    var topicsCount = SharedRequestParsers.ReadCompactArrayCount(request, ref offset);
+    var topics = new List<FetchTopicRequest>(topicsCount);
+
+    for (var i = 0; i < topicsCount; i++)
+    {
+      var topicId = SharedRequestParsers.ReadUuid(request, ref offset);
+      var partitionsCount = SharedRequestParsers.ReadCompactArrayCount(request, ref offset);
+      var partitionIndexes = new List<int>(partitionsCount);
+
+      for (var j = 0; j < partitionsCount; j++)
+      {
+        var partitionIndex = SharedRequestParsers.ReadInt32(request, ref offset);
+        offset += 4 + 8 + 4 + 8 + 4; // current_leader_epoch..partition_max_bytes
+        partitionIndexes.Add(partitionIndex);
+        SharedRequestParsers.SkipTagBuffer(request, ref offset);
+      }
+
+      SharedRequestParsers.SkipTagBuffer(request, ref offset); // topic TAG_BUFFER
+      topics.Add(new FetchTopicRequest(topicId, partitionIndexes));
+    }
+
+    return new FetchRequest(requestHeader, topics);
   }
 
-  // Fetch Response (Version: 16) => throttle_time_ms error_code session_id [responses] [node_endpoints]<tag: 0> 
-  //   throttle_time_ms => INT32
-  //   error_code => INT16
-  //   session_id => INT32
-  //   responses => topic_id [partitions] 
-  //     topic_id => UUID
-  //     partitions => partition_index error_code high_watermark last_stable_offset log_start_offset [aborted_transactions] preferred_read_replica records diverging_epoch<tag: 0> current_leader<tag: 1> snapshot_id<tag: 2> 
-  //       partition_index => INT32
-  //       error_code => INT16
-  //       high_watermark => INT64
-  //       last_stable_offset => INT64
-  //       log_start_offset => INT64
-  //       aborted_transactions => producer_id first_offset 
-  //         producer_id => INT64
-  //         first_offset => INT64
-  //       preferred_read_replica => INT32
-  //       records => COMPACT_RECORDS
-  //       diverging_epoch<tag: 0> => epoch end_offset 
-  //         epoch => INT32
-  //         end_offset => INT64
-  //       current_leader<tag: 1> => leader_id leader_epoch 
-  //         leader_id => INT32
-  //         leader_epoch => INT32
-  //       snapshot_id<tag: 2> => end_offset epoch 
-  //         end_offset => INT64
-  //         epoch => INT32
-  //   node_endpoints<tag: 0> => node_id host port rack 
-  //     node_id => INT32
-  //     host => COMPACT_STRING
-  //     port => INT32
-  //     rack => COMPACT_NULLABLE_STRING
   public override byte[] BuildResponse()
   {
-    var sortedTopicNames = TopicNames.OrderBy(topicName => topicName, StringComparer.Ordinal).ToList();
-
     var writer = new KafkaResponseWriter(RequestHeader.CorrelationId);
     writer.WriteTagBufferEmpty(); // response header TAG_BUFFER
     writer.WriteInt32(0); // throttle_time_ms
     writer.WriteInt16(0); // error_code
     writer.WriteInt32(0); // session_id
-    writer.WriteCompactArrayLength(sortedTopicNames.Count); // responses
+    writer.WriteCompactArrayLength(Topics.Count); // responses
 
-    foreach (var topicName in sortedTopicNames)
+    foreach (var topic in Topics)
     {
-      var topicMetadata = ClusterMetadata.GetTopicMetadata(topicName);
-      if (topicMetadata != null)
-      {
-        writer.WriteBytes(topicMetadata.TopicId);
-      }
-      else
-      {
-        writer.Advance(16);
-      }
+      writer.WriteBytes(topic.TopicId); // responses[].topic_id
 
-      writer.WriteCompactArrayLength(topicMetadata?.Partitions.Count ?? 0);
-
-      foreach (var partition in topicMetadata?.Partitions ?? [])
+      var topicMetadata = ClusterMetadata.GetTopicMetadataById(topic.TopicId);
+      writer.WriteCompactArrayLength(topic.PartitionIndexes.Count); // responses[].partitions
+      foreach (var partitionIndex in topic.PartitionIndexes)
       {
-        writer.WriteInt32(partition.PartitionId);
-        writer.WriteInt16(0); // partition error_code
+        writer.WriteInt32(partitionIndex);
+        writer.WriteInt16(topicMetadata != null ? (short)0 : (short)100); // UNKNOWN_TOPIC_ID
         writer.WriteInt64(0); // high_watermark
         writer.WriteInt64(0); // last_stable_offset
         writer.WriteInt64(0); // log_start_offset
@@ -83,9 +65,14 @@ public class FetchRequest(RequestHeader requestHeader, List<string> topicNames) 
       writer.WriteTagBufferEmpty(); // topic TAG_BUFFER
     }
 
-    writer.WriteTagBufferEmpty(); // response TAG_BUFFER (node_endpoints absent)
+    writer.WriteTagBufferEmpty(); // response TAG_BUFFER (node_endpoints tagged field omitted)
 
     return writer.ToArray();
   }
+}
 
+public class FetchTopicRequest(byte[] topicId, List<int> partitionIndexes)
+{
+  public byte[] TopicId { get; } = topicId;
+  public List<int> PartitionIndexes { get; } = partitionIndexes;
 }

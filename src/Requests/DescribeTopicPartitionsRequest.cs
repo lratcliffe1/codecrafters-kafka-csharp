@@ -8,7 +8,18 @@ public class DescribeTopicPartitionsRequest(RequestHeader requestHeader, List<st
 
   public static DescribeTopicPartitionsRequest FromBytes(RequestHeader requestHeader, byte[] request)
   {
-    return new DescribeTopicPartitionsRequest(requestHeader, SharedRequestParsers.ParseTopicNamesFromCompactArray(requestHeader, request));
+    var offset = SharedRequestParsers.ReadRequestBodyOffset(requestHeader);
+    var topicsCount = SharedRequestParsers.ReadCompactArrayCount(request, ref offset);
+    var topicNames = new List<string>(topicsCount);
+
+    for (var i = 0; i < topicsCount; i++)
+    {
+      var topicName = SharedRequestParsers.ReadCompactString(request, ref offset);
+      topicNames.Add(topicName);
+      SharedRequestParsers.SkipTagBuffer(request, ref offset);
+    }
+
+    return new DescribeTopicPartitionsRequest(requestHeader, topicNames);
   }
 
   public override byte[] BuildResponse()
@@ -18,12 +29,12 @@ public class DescribeTopicPartitionsRequest(RequestHeader requestHeader, List<st
     var writer = new KafkaResponseWriter(RequestHeader.CorrelationId);
     writer.WriteTagBufferEmpty(); // response header TAG_BUFFER
     writer.WriteInt32(0); // throttle_time_ms
-    writer.WriteCompactArrayLength(sortedTopicNames.Count);
+    writer.WriteCompactArrayLength(sortedTopicNames.Count); // topics
 
     foreach (var topicName in sortedTopicNames)
     {
-      var topicMetadata = ClusterMetadata.GetTopicMetadata(topicName);
-      writer.WriteInt16(topicMetadata != null ? (short)0 : (short)3);
+      var topicMetadata = ClusterMetadata.GetTopicMetadataByName(topicName);
+      writer.WriteInt16(topicMetadata != null ? (short)0 : (short)3); // UNKNOWN_TOPIC_OR_PARTITION when missing
       writer.WriteCompactString(topicName);
 
       if (topicMetadata != null)
@@ -32,11 +43,11 @@ public class DescribeTopicPartitionsRequest(RequestHeader requestHeader, List<st
       }
       else
       {
-        writer.Advance(16);
+        writer.Advance(16); // topic_id = all-zero UUID placeholder
       }
 
       writer.WriteByte(0); // is_internal = false
-      writer.WriteCompactArrayLength(topicMetadata?.Partitions.Count ?? 0);
+      writer.WriteCompactArrayLength(topicMetadata?.Partitions.Count ?? 0); // partitions
 
       if (topicMetadata != null)
       {
@@ -85,5 +96,4 @@ public class DescribeTopicPartitionsRequest(RequestHeader requestHeader, List<st
 
     return writer.ToArray();
   }
-
 }
