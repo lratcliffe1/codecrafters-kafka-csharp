@@ -1,8 +1,7 @@
 using System.Buffers.Binary;
 using System.Text;
-using src.Requests.Base;
 
-namespace src.Requests;
+namespace src.Requests.Base;
 
 public static class SharedRequestParsers
 {

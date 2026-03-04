@@ -46,19 +46,27 @@ public class FetchRequest(RequestHeader requestHeader, List<FetchTopicRequest> t
     foreach (var topic in Topics)
     {
       writer.WriteBytes(topic.TopicId);
+      writer.WriteCompactArrayLength(topic.PartitionIndexes.Count);
 
       var topicMetadata = ClusterMetadata.GetTopicMetadataById(topic.TopicId);
-      writer.WriteCompactArrayLength(topic.PartitionIndexes.Count);
       foreach (var partitionIndex in topic.PartitionIndexes)
       {
+        var partitionExists = topicMetadata?.Partitions.Any(p => p.PartitionId == partitionIndex) ?? false;
+        var errorCode = topicMetadata == null
+          ? (short)100
+          : partitionExists ? (short)0 : (short)3; // UNKNOWN_TOPIC_OR_PARTITION
+        var records = errorCode == 0
+          ? ClusterMetadata.GetPartitionRecordBatch(topic.TopicId, partitionIndex)
+          : null;
+
         writer.WriteInt32(partitionIndex);
-        writer.WriteInt16(topicMetadata != null ? (short)0 : (short)100); // UNKNOWN_TOPIC_ID
+        writer.WriteInt16(errorCode);
         writer.WriteInt64(0); // high_watermark
         writer.WriteInt64(0); // last_stable_offset
         writer.WriteInt64(0); // log_start_offset
         writer.WriteCompactArrayLength(0); // aborted_transactions
         writer.WriteInt32(-1); // preferred_read_replica
-        writer.WriteByte(0); // records = null COMPACT_RECORDS
+        writer.WriteCompactNullableBytes(records);
         writer.WriteTagBufferEmpty(); // partition TAG_BUFFER
       }
 

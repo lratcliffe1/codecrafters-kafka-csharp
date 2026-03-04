@@ -5,6 +5,7 @@ namespace src;
 
 public static class ClusterMetadata
 {
+  const string DataLogsRootPath = "/tmp/kraft-combined-logs";
   const string ClusterMetadataLogPath = "/tmp/kraft-combined-logs/__cluster_metadata-0/00000000000000000000.log";
 
   // MetadataRecordType api keys from Kafka source:
@@ -36,6 +37,32 @@ public static class ClusterMetadata
   {
     TopicsById.TryGetValue(Convert.ToHexString(topicId), out var topic);
     return topic;
+  }
+
+  public static byte[]? GetPartitionRecordBatch(byte[] topicId, int partitionId)
+  {
+    var topic = GetTopicMetadataById(topicId);
+    if (topic == null || !topic.Partitions.Any(p => p.PartitionId == partitionId))
+    {
+      return null;
+    }
+
+    var partitionDirectory = Path.Combine(DataLogsRootPath, $"{topic.TopicName}-{partitionId}");
+    if (!Directory.Exists(partitionDirectory))
+    {
+      return null;
+    }
+
+    var logPath = Directory.GetFiles(partitionDirectory, "*.log")
+      .OrderBy(path => path, StringComparer.Ordinal)
+      .LastOrDefault();
+
+    if (string.IsNullOrEmpty(logPath))
+    {
+      return null;
+    }
+
+    return File.ReadAllBytes(logPath);
   }
 
   static void ParseRecordBatches(byte[] logBytes)

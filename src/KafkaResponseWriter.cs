@@ -71,13 +71,37 @@ public class KafkaResponseWriter
 
   public void WriteTagBufferEmpty() => WriteByte(0);
 
-  public void WriteCompactArrayLength(int elementCount) => WriteByte((byte)(elementCount + 1));
+  public void WriteUnsignedVarInt(int value)
+  {
+    var remaining = (uint)value;
+    while (remaining >= 0x80)
+    {
+      WriteByte((byte)((remaining & 0x7f) | 0x80));
+      remaining >>= 7;
+    }
+
+    WriteByte((byte)remaining);
+  }
+
+  public void WriteCompactArrayLength(int elementCount) => WriteUnsignedVarInt(elementCount + 1);
 
   public void WriteCompactString(string value)
   {
     var bytes = Encoding.UTF8.GetBytes(value);
-    WriteByte((byte)(bytes.Length + 1));
+    WriteUnsignedVarInt(bytes.Length + 1);
     WriteBytes(bytes);
+  }
+
+  public void WriteCompactNullableBytes(byte[]? value)
+  {
+    if (value == null)
+    {
+      WriteUnsignedVarInt(0);
+      return;
+    }
+
+    WriteUnsignedVarInt(value.Length + 1);
+    WriteBytes(value);
   }
 
   public void Advance(int bytesCount)
