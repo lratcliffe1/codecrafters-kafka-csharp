@@ -1,34 +1,80 @@
-[![progress-banner](https://backend.codecrafters.io/progress/kafka/1319a09c-5271-4aa2-aa4e-379c2058777d)](https://app.codecrafters.io/users/goose-729?r=2qF)
+# C# Kafka Broker
 
-This is a starting point for C# solutions to the
-["Build Your Own Kafka" Challenge](https://codecrafters.io/challenges/kafka).
+This repository contains my solution to the ["Build your own Kafka" challenge](https://app.codecrafters.io/courses/kafka/overview).
 
-In this challenge, you'll build a toy Kafka clone that's capable of accepting
-and responding to ApiVersions & Fetch API requests. You'll also learn about
-encoding and decoding messages using the Kafka wire protocol. You'll also learn
-about handling the network protocol, event loops, TCP sockets and more.
+Built a Kafka-compatible broker that parses Kafka wire protocol requests over TCP and responds to core APIs including ApiVersions, DescribeTopicPartitions, Fetch, and Produce.
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+Implemented topic/partition metadata decoding from Kafka's KRaft metadata log, plus on-disk record append/read flow for partition log segments.
 
-# Passing the first stage
+## What I have done
 
-The entry point for your Kafka implementation is in `src/main.cs`. Study and
-uncomment the relevant code, and push your changes to pass the first stage:
+Implemented the broker runtime in `src/main.cs` and `src/KafkaServer.cs` that:
+listens on TCP port 9092,
+accepts concurrent clients asynchronously,
+reads framed Kafka messages (`message_size` + request bytes),
+parses requests and writes protocol-compliant binary responses.
 
-```sh
-git commit -am "pass 1st stage" # any msg
-git push origin master
-```
+Added request routing in `src/Helpers/RequestParser.cs` for:
+ApiVersions,
+DescribeTopicPartitions,
+Fetch,
+Produce,
+unsupported APIs (fallback error response).
 
-That's all!
+Implemented ApiVersions handling in `src/Requests/ApiVersionsRequest.cs` with:
+version guard behavior (`UNSUPPORTED_VERSION` for unsupported request versions),
+dynamic API key/version range listing based on supported APIs.
 
-# Stage 2 & beyond
+Implemented DescribeTopicPartitions handling in `src/Requests/DescribeTopicPartitionsRequest.cs` with:
+topic sorting,
+unknown-topic error mapping,
+per-partition metadata response fields (leader, ISR, replicas, ELR, last-known ELR).
 
-Note: This section is for stages 2 and beyond.
+Implemented Fetch handling in `src/Requests/FetchRequest.cs` with:
+topic-id and partition parsing from compact request fields,
+error handling for unknown topic/partition,
+record batch lookup from partition log files and compact nullable bytes responses.
 
-1. Ensure you have `dotnet (9.0)` installed locally
-1. Run `./your_program.sh` to run your Kafka broker, which is implemented in
-   `src/main.cs`.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
+Implemented Produce handling in `src/Requests/ProduceRequest.cs` with:
+compact request parsing for topics/partitions/records,
+unknown-topic-or-partition handling,
+record batch append to partition log files and produce acknowledgements.
+
+Built reusable protocol helpers:
+`src/Requests/Base/SharedRequestParsers.cs` for compact/varint/tag-buffer parsing,
+`src/Helpers/KafkaResponseWriter.cs` for big-endian encoding, compact types, and response framing.
+
+Added metadata loading/parsing in `src/ClusterMetadata.cs` that:
+loads `__cluster_metadata` log on startup,
+parses TopicRecord and PartitionRecord entries from record batches,
+builds in-memory topic + partition indices for request-time lookups.
+
+## Architecture choices
+
+Used a central request abstraction (`BaseKafkaRequest`) so each API owns its own parse/response logic while the server loop remains transport-focused.
+
+Split protocol concerns into two layers: low-level binary encoding/decoding helpers and high-level request handlers, reducing duplication across API implementations.
+
+Used metadata-first routing by indexing topics both by name and by topic ID to support both DescribeTopicPartitions and Fetch lookup paths efficiently.
+
+Persisted produce records directly to Kafka-style partition log files under `/tmp/kraft-combined-logs` to keep read/write behavior aligned with challenge expectations.
+
+Kept the network loop fully async (`AcceptTcpClientAsync`, `ReadAsync`, `WriteAsync`) to support multiple clients without blocking the listener.
+
+## What I have learnt
+
+Wire-protocol implementations are mostly about disciplined offset management; compact encodings and tagged fields make parser correctness heavily dependent on precise cursor movement.
+
+Separating parsing and response writing utilities early prevents handler code from becoming brittle when adding more Kafka APIs.
+
+A clean request-dispatch boundary makes it easier to support unsupported APIs safely while incrementally adding new handlers.
+
+Kafka metadata logs are rich enough to reconstruct useful broker state (topic IDs, partitions, leaders, ISR) without running a full broker controller.
+
+Binary protocol debugging is much easier when each request type is modeled as a dedicated unit with deterministic serialization output.
+
+## Run locally
+
+Ensure .NET 9 is installed.
+
+Run `./your_program.sh`.
